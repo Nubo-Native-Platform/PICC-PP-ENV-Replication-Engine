@@ -1,0 +1,90 @@
+services:
+  envrep-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: picc-pp-env-replication-engine:latest
+    container_name: envrep-engine
+    ports:
+      - "${SERVER_PORT:-8082}:8082"
+    environment:
+      - SERVER_PORT=${SERVER_PORT:-8082}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-main}
+      - CONFIG_SERVER_URL=${CONFIG_SERVER_URL:-http://localhost:8888}
+      - DATASOURCE_URL=${DATASOURCE_URL:-jdbc:postgresql://postgres:5432/eiimp-platform}
+      - DATASOURCE_USERNAME=${DATASOURCE_USERNAME:-postgres}
+      - DATASOURCE_PASSWORD=${DATASOURCE_PASSWORD:-postgres}
+      - ACTIVEMQ_BROKER_URL=${ACTIVEMQ_BROKER_URL:-tcp://artemis:61616}
+      - ACTIVEMQ_USER=${ACTIVEMQ_USER:-artemis}
+      - ACTIVEMQ_PASSWORD=${ACTIVEMQ_PASSWORD:-artemis}
+      - GITOPS_FOLDER=/app/gitops
+      - GITOPS_GITLAB_URL=${GITOPS_GITLAB_URL:-https://gitlab.example.com}
+      - GITOPS_REPOPATH=${GITOPS_REPOPATH:-/env-replication-gitops/$${env}-synch.git}
+      - GITOPS_TEMPLATE=/app/template
+      - GITLAB_REPO_USER=${GITLAB_REPO_USER:-gitops-bot}
+      - GITLAB_REPO_PASSWORD=${GITLAB_REPO_PASSWORD:-}
+      - GITLAB_NNP_USER=${GITLAB_NNP_USER:-nnp-support}
+      - REDMINE_SERVICE_BASEURL=${REDMINE_SERVICE_BASEURL:-http://localhost:8095/redmineint}
+      - GITINT_SERVICE_BASEURL=${GITINT_SERVICE_BASEURL:-http://localhost:8094/gitlabint}
+      - MAIL_SERVICE_BASEURL=${MAIL_SERVICE_BASEURL:-http://localhost:8080}
+      - HAPROXY_SERVICE_BASEURL=${HAPROXY_SERVICE_BASEURL:-http://localhost:8081}
+      - REDMINE_API_KEY=${REDMINE_API_KEY:-}
+      - REDMINE_PROJECT_NAME=${REDMINE_PROJECT_NAME:-EIIMP Environment Support}
+      - ARGO_USER=${ARGO_USER:-admin}
+      - ARGO_PASSWORD=${ARGO_PASSWORD:-}
+      - FEIGN_NAME=${FEIGN_NAME:-argo-client}
+      - FEIGN_URL=${FEIGN_URL:-http://localhost:8080}
+      - FEIGN_URL_API=${FEIGN_URL_API:-/api/v1}
+      - HAPROXY_BASE_DOMAIN=${HAPROXY_BASE_DOMAIN:-nnp.nubons.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      artemis:
+        condition: service_started
+    networks:
+      - envrep-net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8082/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: envrep-postgres
+    environment:
+      POSTGRES_DB: eiimp-platform
+      POSTGRES_USER: ${DATASOURCE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATASOURCE_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - envrep-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  artemis:
+    image: apache/activemq-artemis:latest-alpine
+    container_name: envrep-artemis
+    environment:
+      ARTEMIS_USER: ${ACTIVEMQ_USER:-artemis}
+      ARTEMIS_PASSWORD: ${ACTIVEMQ_PASSWORD:-artemis}
+    ports:
+      - "61616:61616"
+      - "8161:8161"
+    networks:
+      - envrep-net
+
+networks:
+  envrep-net:
+    driver: bridge
+
+volumes:
+  pgdata:
