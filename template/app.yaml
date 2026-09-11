@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: [=env?lower_case]-apps
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: [=gitLabRepoUrlToReg]  # Replace with your Git repository URL where the application manifests reside
+    path: . 
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: [=env?lower_case]
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
